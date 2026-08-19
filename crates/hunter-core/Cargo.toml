@@ -1,0 +1,24 @@
+[package]
+name = "hunter-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared application contracts for httphunter"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1", "server"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+rcgen = { version = "0.13", features = ["x509-parser"] }
+rustls = "0.23"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tokio-rustls = "0.26"
+toml = "0.8"
+tracing = "0.1"
+uuid = { version = "1", features = ["v4", "serde"] }
+webpki-roots = "0.26"

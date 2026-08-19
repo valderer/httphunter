@@ -1,0 +1,39 @@
+Date : 2026-08-18 14:37:57
+Directory : /Users/lewis/Documents/code/httphunter
+Total : 11 files,  2255 codes, 8 comments, 438 blanks, all 2701 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| Rust     |          9 |      1,366 |          8 |        143 |      1,517 |
+| Markdown |          1 |        888 |          0 |        295 |      1,183 |
+| JSON     |          1 |          1 |          0 |          0 |          1 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                  | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                     |         11 |      2,255 |          8 |        438 |      2,701 |
+| . (Files)                                             |          2 |        889 |          0 |        295 |      1,184 |
+| src                                                   |          9 |      1,366 |          8 |        143 |      1,517 |
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                              | language | code       | comment    | blank      | total      |
++-------------------------------------------------------+----------+------------+------------+------------+------------+
+| /Users/lewis/Documents/code/httphunter/capture.har    | JSON     |          1 |          0 |          0 |          1 |
+| /Users/lewis/Documents/code/httphunter/src/api.rs     | Rust     |        470 |          0 |         22 |        492 |
+| /Users/lewis/Documents/code/httphunter/src/ca.rs      | Rust     |         62 |          0 |         16 |         78 |
+| /Users/lewis/Documents/code/httphunter/src/capture.rs | Rust     |        123 |          0 |         16 |        139 |
+| /Users/lewis/Documents/code/httphunter/src/config.rs  | Rust     |        127 |          0 |         17 |        144 |
+| /Users/lewis/Documents/code/httphunter/src/error.rs   | Rust     |         11 |          0 |          4 |         15 |
+| /Users/lewis/Documents/code/httphunter/src/logging.rs | Rust     |         11 |          0 |          3 |         14 |
+| /Users/lewis/Documents/code/httphunter/src/main.rs    | Rust     |         73 |          8 |         12 |         93 |
+| /Users/lewis/Documents/code/httphunter/src/mitm.rs    | Rust     |        192 |          0 |         18 |        210 |
+| /Users/lewis/Documents/code/httphunter/src/proxy.rs   | Rust     |        297 |          0 |         35 |        332 |
+| /Users/lewis/Documents/code/httphunter/startup.md     | Markdown |        888 |          0 |        295 |      1,183 |
+| Total                                                 |          |      2,255 |          8 |        438 |      2,701 |
++-------------------------------------------------------+----------+------------+------------+------------+------------+

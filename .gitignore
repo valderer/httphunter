@@ -1,0 +1,9 @@
+/target/
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
+/desktop/web/node_modules/
+/desktop/web/dist/
+/capture.har
+/config.toml
+*.har
+.DS_Store

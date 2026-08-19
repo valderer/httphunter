@@ -1,0 +1,13 @@
+"filename", "language", "Rust", "JSON", "Markdown", "comment", "blank", "total"
+"/Users/lewis/Documents/code/httphunter/capture.har", "JSON", 0, 1, 0, 0, 0, 1
+"/Users/lewis/Documents/code/httphunter/src/api.rs", "Rust", 470, 0, 0, 0, 22, 492
+"/Users/lewis/Documents/code/httphunter/src/ca.rs", "Rust", 62, 0, 0, 0, 16, 78
+"/Users/lewis/Documents/code/httphunter/src/capture.rs", "Rust", 123, 0, 0, 0, 16, 139
+"/Users/lewis/Documents/code/httphunter/src/config.rs", "Rust", 127, 0, 0, 0, 17, 144
+"/Users/lewis/Documents/code/httphunter/src/error.rs", "Rust", 11, 0, 0, 0, 4, 15
+"/Users/lewis/Documents/code/httphunter/src/logging.rs", "Rust", 11, 0, 0, 0, 3, 14
+"/Users/lewis/Documents/code/httphunter/src/main.rs", "Rust", 73, 0, 0, 8, 12, 93
+"/Users/lewis/Documents/code/httphunter/src/mitm.rs", "Rust", 192, 0, 0, 0, 18, 210
+"/Users/lewis/Documents/code/httphunter/src/proxy.rs", "Rust", 297, 0, 0, 0, 35, 332
+"/Users/lewis/Documents/code/httphunter/startup.md", "Markdown", 0, 0, 888, 0, 295, 1183
+"Total", "-", 1366, 1, 888, 8, 438, 2701
