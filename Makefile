@@ -1,4 +1,4 @@
-.PHONY: dev check run web-install web-dev web-build desktop-dev
+.PHONY: dev check run web-install web-dev web-build desktop-dev desktop-build
 
 # Watches Rust sources and restarts the local proxy after each change.
 dev:
@@ -23,3 +23,7 @@ web-build:
 # Starts the Tauri desktop shell and its Vite development server.
 desktop-dev:
 	cd desktop/src-tauri && ../web/node_modules/.bin/tauri dev
+
+# Builds the installer for the current operating system.
+desktop-build:
+	cd desktop/src-tauri && ../web/node_modules/.bin/tauri build
