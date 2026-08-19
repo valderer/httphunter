@@ -156,7 +156,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-在 GitHub 的 **Actions -> Release desktop application** 查看构建进度。两个平台构建成功后，安装包会出现在 [Releases](https://github.com/valderer/httphunter/releases)。若标签已存在，可在 Actions 页面选择 **Run workflow**，输入已有标签如 `v0.1.0` 后重新发布。
+在 GitHub 的 **Actions -> Release desktop application** 查看构建进度。两个平台构建成功后，安装包会出现在 [Releases](https://github.com/valderer/httphunter/releases)。若需要从 Actions 手动发布，在目标提交或分支上选择 **Run workflow**，输入版本标签如 `v0.1.0`；工作流会在该提交创建或更新对应的标签和 Release。
 
 当前 CI 构建的是未签名安装包。macOS 用户可能会看到 Gatekeeper 提示，Windows 用户可能会看到 SmartScreen 提示。面向普通用户正式分发前，应配置 Apple Developer 签名和公证，以及 Windows 代码签名证书。不要将本机生成的 `ca.crt`、`ca.key` 或包含抓包内容的文件打包、上传或提交到仓库。
 
