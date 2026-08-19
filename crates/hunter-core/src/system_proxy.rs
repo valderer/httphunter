@@ -1,5 +1,8 @@
-use anyhow::{bail, Context};
+use anyhow::bail;
+#[cfg(target_os = "macos")]
+use anyhow::Context;
 use serde::Serialize;
+#[cfg(target_os = "macos")]
 use tokio::process::Command;
 
 use crate::SystemProxyConfig;
