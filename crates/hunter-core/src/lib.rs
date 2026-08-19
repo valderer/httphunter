@@ -19,8 +19,7 @@ use uuid::Uuid;
 
 mod config;
 pub use config::{
-    ApiConfig, AppConfig, CaptureConfig, LoggingConfig, PrivacyConfig, ProxyConfig,
-    SystemProxyConfig,
+    AppConfig, CaptureConfig, LoggingConfig, PrivacyConfig, ProxyConfig, SystemProxyConfig,
 };
 
 mod ca;

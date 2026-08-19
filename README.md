@@ -160,37 +160,12 @@ git push origin v0.1.0
 
 当前 CI 构建的是未签名安装包。macOS 用户可能会看到 Gatekeeper 提示，Windows 用户可能会看到 SmartScreen 提示。面向普通用户正式分发前，应配置 Apple Developer 签名和公证，以及 Windows 代码签名证书。不要将本机生成的 `ca.crt`、`ca.key` 或包含抓包内容的文件打包、上传或提交到仓库。
 
-## CLI 兼容模式
-
-旧的命令行代理和浏览器 Web UI 仍保留，适合调试核心代理。复制配置并启动：
-
-```bash
-cp config.example.toml config.toml
-cargo run -- ca generate
-RUST_LOG=info cargo run -- --config config.toml proxy
-```
-
-默认代理为 `127.0.0.1:8080`，旧 Web UI 为 <http://127.0.0.1:9090/>。`config.toml` 中的 `mitm_exclude` 会使指定域名及其子域名使用普通 CONNECT 隧道：网站可访问，但其 HTTPS 内容不会被解密或捕获。
-
-```toml
-[proxy]
-mitm_exclude = ["bilibili.com"]
-```
-
-开发旧 CLI 时可安装 `cargo-watch` 后运行 `make dev`：
-
-```bash
-cargo install cargo-watch
-make dev
-```
-
 ## 项目结构
 
 ```text
 crates/hunter-core/   共享代理、HTTPS MITM、证书和会话核心
 desktop/web/          React + TypeScript + Vite 界面
 desktop/src-tauri/    Tauri 桌面壳和 Rust 命令
-src/                  旧 CLI 与 Axum Web UI
 ```
 
 ## 安全说明

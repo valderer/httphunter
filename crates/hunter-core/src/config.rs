@@ -14,7 +14,6 @@ pub struct AppConfig {
     pub capture: CaptureConfig,
     pub privacy: PrivacyConfig,
     pub logging: LoggingConfig,
-    pub api: ApiConfig,
     pub system_proxy: SystemProxyConfig,
 }
 
@@ -51,13 +50,6 @@ pub struct LoggingConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct ApiConfig {
-    pub enabled: bool,
-    pub listen: SocketAddr,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
 pub struct SystemProxyConfig {
     pub network_service: String,
 }
@@ -69,7 +61,6 @@ impl Default for AppConfig {
             capture: CaptureConfig::default(),
             privacy: PrivacyConfig::default(),
             logging: LoggingConfig::default(),
-            api: ApiConfig::default(),
             system_proxy: SystemProxyConfig::default(),
         }
     }
@@ -123,15 +114,6 @@ impl Default for LoggingConfig {
     }
 }
 
-impl Default for ApiConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            listen: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9090),
-        }
-    }
-}
-
 impl Default for SystemProxyConfig {
     fn default() -> Self {
         Self {
@@ -162,10 +144,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_uses_localhost_proxy_and_api() {
+    fn default_config_uses_localhost_proxy() {
         let config = AppConfig::default();
         assert_eq!(config.proxy.listen, "127.0.0.1:8080".parse().unwrap());
-        assert_eq!(config.api.listen, "127.0.0.1:9090".parse().unwrap());
-        assert!(config.api.enabled);
     }
 }
