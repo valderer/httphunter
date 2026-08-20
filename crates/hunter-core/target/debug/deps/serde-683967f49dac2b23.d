@@ -1,0 +1,14 @@
+/Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/deps/serde-683967f49dac2b23.d: /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/build/serde-a1e019cbddd356a2/out/private.rs
+
+/Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/deps/libserde-683967f49dac2b23.rlib: /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/build/serde-a1e019cbddd356a2/out/private.rs
+
+/Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/deps/libserde-683967f49dac2b23.rmeta: /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/build/serde-a1e019cbddd356a2/out/private.rs
+
+/Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs:
+/Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs:
+/Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs:
+/Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs:
+/Users/lewis/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs:
+/Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/build/serde-a1e019cbddd356a2/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/lewis/Documents/code/httphunter/crates/hunter-core/target/debug/build/serde-a1e019cbddd356a2/out
