@@ -1,0 +1,88 @@
+Date : 2026-08-20 03:19:25
+Directory : /Users/lewis/Documents/code/httphunter
+Total : 35 files,  1913 codes, -1 comments, -117 blanks, all 1795 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| JSON               |          5 |      1,948 |          0 |          4 |      1,952 |
+| TypeScript JSX     |          2 |        441 |          0 |         56 |        497 |
+| PostCSS            |          1 |        105 |          0 |          1 |        106 |
+| YAML               |          1 |         74 |          0 |         12 |         86 |
+| Rust               |         18 |         52 |         -4 |         33 |         81 |
+| JSON with Comments |          1 |         19 |          0 |          2 |         21 |
+| HTML               |          1 |         12 |          0 |          2 |         14 |
+| TypeScript         |          1 |         11 |          0 |          3 |         14 |
+| Makefile           |          1 |         11 |          3 |          6 |         20 |
+| XML                |          2 |          9 |          0 |          0 |          9 |
+| Markdown           |          2 |       -769 |          0 |       -236 |     -1,005 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                     | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                        |         35 |      1,913 |         -1 |       -117 |      1,795 |
+| . (Files)                                                                                                |          4 |       -759 |          3 |       -230 |       -986 |
+| .github                                                                                                  |          1 |         74 |          0 |         12 |         86 |
+| .github/workflows                                                                                        |          1 |         74 |          0 |         12 |         86 |
+| crates                                                                                                   |          7 |      1,256 |          4 |        155 |      1,415 |
+| crates/hunter-core                                                                                       |          7 |      1,256 |          4 |        155 |      1,415 |
+| crates/hunter-core/src                                                                                   |          7 |      1,256 |          4 |        155 |      1,415 |
+| desktop                                                                                                  |         14 |      2,708 |          0 |         89 |      2,797 |
+| desktop/src-tauri                                                                                        |          6 |        215 |          0 |         23 |        238 |
+| desktop/src-tauri (Files)                                                                                |          2 |         40 |          0 |          2 |         42 |
+| desktop/src-tauri/capabilities                                                                           |          1 |          7 |          0 |          1 |          8 |
+| desktop/src-tauri/icons                                                                                  |          2 |          9 |          0 |          0 |          9 |
+| desktop/src-tauri/icons/android                                                                          |          2 |          9 |          0 |          0 |          9 |
+| desktop/src-tauri/icons/android/mipmap-anydpi-v26                                                        |          1 |          5 |          0 |          0 |          5 |
+| desktop/src-tauri/icons/android/values                                                                   |          1 |          4 |          0 |          0 |          4 |
+| desktop/src-tauri/src                                                                                    |          1 |        159 |          0 |         20 |        179 |
+| desktop/web                                                                                              |          8 |      2,493 |          0 |         66 |      2,559 |
+| desktop/web (Files)                                                                                      |          5 |      1,947 |          0 |          9 |      1,956 |
+| desktop/web/src                                                                                          |          3 |        546 |          0 |         57 |        603 |
+| src                                                                                                      |          9 |     -1,366 |         -8 |       -143 |     -1,517 |
++----------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                                 | language           | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| /Users/lewis/Documents/code/httphunter/.github/workflows/release.yml                                     | YAML               |         74 |          0 |         12 |         86 |
+| /Users/lewis/Documents/code/httphunter/Makefile                                                          | Makefile           |         11 |          3 |          6 |         20 |
+| /Users/lewis/Documents/code/httphunter/README.md                                                         | Markdown           |        119 |          0 |         59 |        178 |
+| /Users/lewis/Documents/code/httphunter/capture.har                                                       | JSON               |         -1 |          0 |          0 |         -1 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/ca.rs                                      | Rust               |         68 |          0 |         12 |         80 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/config.rs                                  | Rust               |        134 |          0 |         18 |        152 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/lib.rs                                     | Rust               |        286 |          4 |         37 |        327 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/mitm.rs                                    | Rust               |        196 |          0 |         18 |        214 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/proxy_engine.rs                            | Rust               |        332 |          0 |         34 |        366 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/runtime.rs                                 | Rust               |        129 |          0 |         23 |        152 |
+| /Users/lewis/Documents/code/httphunter/crates/hunter-core/src/system_proxy.rs                            | Rust               |        111 |          0 |         13 |        124 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/build.rs                                        | Rust               |          3 |          0 |          1 |          4 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/capabilities/default.json                       | JSON               |          7 |          0 |          1 |          8 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/icons/android/mipmap-anydpi-v26/ic_launcher.xml | XML                |          5 |          0 |          0 |          5 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/icons/android/values/ic_launcher_background.xml | XML                |          4 |          0 |          0 |          4 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/src/main.rs                                     | Rust               |        159 |          0 |         20 |        179 |
+| /Users/lewis/Documents/code/httphunter/desktop/src-tauri/tauri.conf.json                                 | JSON               |         37 |          0 |          1 |         38 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/index.html                                            | HTML               |         12 |          0 |          2 |         14 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/package-lock.json                                     | JSON               |      1,877 |          0 |          1 |      1,878 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/package.json                                          | JSON               |         28 |          0 |          1 |         29 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/src/App.tsx                                           | TypeScript JSX     |        432 |          0 |         53 |        485 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/src/main.tsx                                          | TypeScript JSX     |          9 |          0 |          3 |         12 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/src/styles.css                                        | PostCSS            |        105 |          0 |          1 |        106 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/tsconfig.json                                         | JSON with Comments |         19 |          0 |          2 |         21 |
+| /Users/lewis/Documents/code/httphunter/desktop/web/vite.config.ts                                        | TypeScript         |         11 |          0 |          3 |         14 |
+| /Users/lewis/Documents/code/httphunter/src/api.rs                                                        | Rust               |       -470 |          0 |        -22 |       -492 |
+| /Users/lewis/Documents/code/httphunter/src/ca.rs                                                         | Rust               |        -62 |          0 |        -16 |        -78 |
+| /Users/lewis/Documents/code/httphunter/src/capture.rs                                                    | Rust               |       -123 |          0 |        -16 |       -139 |
+| /Users/lewis/Documents/code/httphunter/src/config.rs                                                     | Rust               |       -127 |          0 |        -17 |       -144 |
+| /Users/lewis/Documents/code/httphunter/src/error.rs                                                      | Rust               |        -11 |          0 |         -4 |        -15 |
+| /Users/lewis/Documents/code/httphunter/src/logging.rs                                                    | Rust               |        -11 |          0 |         -3 |        -14 |
+| /Users/lewis/Documents/code/httphunter/src/main.rs                                                       | Rust               |        -73 |         -8 |        -12 |        -93 |
+| /Users/lewis/Documents/code/httphunter/src/mitm.rs                                                       | Rust               |       -192 |          0 |        -18 |       -210 |
+| /Users/lewis/Documents/code/httphunter/src/proxy.rs                                                      | Rust               |       -297 |          0 |        -35 |       -332 |
+| /Users/lewis/Documents/code/httphunter/startup.md                                                        | Markdown           |       -888 |          0 |       -295 |     -1,183 |
+| Total                                                                                                    |                    |      1,913 |         -1 |       -117 |      1,795 |
++----------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+

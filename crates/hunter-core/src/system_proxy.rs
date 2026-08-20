@@ -1,8 +1,9 @@
-use anyhow::bail;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use anyhow::Context;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use anyhow::bail;
 use serde::Serialize;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use tokio::process::Command;
 
 use crate::SystemProxyConfig;
@@ -35,31 +36,61 @@ impl SystemProxyController {
     }
 
     pub async fn enable(&self) -> anyhow::Result<()> {
-        self.run(&[
-            "-setwebproxy",
-            &self.network_service,
-            &self.host,
-            &self.port.to_string(),
-        ])
-        .await?;
-        self.run(&[
-            "-setsecurewebproxy",
-            &self.network_service,
-            &self.host,
-            &self.port.to_string(),
-        ])
-        .await?;
-        self.run(&["-setwebproxystate", &self.network_service, "on"])
+        #[cfg(target_os = "macos")]
+        {
+            self.run(&[
+                "-setwebproxy",
+                &self.network_service,
+                &self.host,
+                &self.port.to_string(),
+            ])
             .await?;
-        self.run(&["-setsecurewebproxystate", &self.network_service, "on"])
-            .await
+            self.run(&[
+                "-setsecurewebproxy",
+                &self.network_service,
+                &self.host,
+                &self.port.to_string(),
+            ])
+            .await?;
+            self.run(&["-setwebproxystate", &self.network_service, "on"])
+                .await?;
+            return self
+                .run(&["-setsecurewebproxystate", &self.network_service, "on"])
+                .await;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            self.write_windows_value("ProxyServer", "REG_SZ", &self.windows_proxy_server())
+                .await?;
+            return self
+                .write_windows_value("ProxyEnable", "REG_DWORD", "1")
+                .await;
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        bail!("automatic system proxy control is not supported on this operating system")
     }
 
     pub async fn disable(&self) -> anyhow::Result<()> {
-        self.run(&["-setwebproxystate", &self.network_service, "off"])
-            .await?;
-        self.run(&["-setsecurewebproxystate", &self.network_service, "off"])
-            .await
+        #[cfg(target_os = "macos")]
+        {
+            self.run(&["-setwebproxystate", &self.network_service, "off"])
+                .await?;
+            return self
+                .run(&["-setsecurewebproxystate", &self.network_service, "off"])
+                .await;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            return self
+                .write_windows_value("ProxyEnable", "REG_DWORD", "0")
+                .await;
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        bail!("automatic system proxy control is not supported on this operating system")
     }
 
     #[cfg(target_os = "macos")]
@@ -73,7 +104,16 @@ impl SystemProxyController {
         })
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    pub async fn status(&self) -> anyhow::Result<SystemProxyStatus> {
+        Ok(SystemProxyStatus {
+            supported: true,
+            enabled: self.read_windows_proxy_enabled().await?,
+            network_service: "Windows user proxy".to_owned(),
+        })
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     pub async fn status(&self) -> anyhow::Result<SystemProxyStatus> {
         Ok(SystemProxyStatus {
             supported: false,
@@ -90,7 +130,7 @@ impl SystemProxyController {
             .await
             .context("failed to run macOS networksetup")?;
         if !output.status.success() {
-            bail!(
+            anyhow::bail!(
                 "networksetup failed for service {}: {}",
                 self.network_service,
                 String::from_utf8_lossy(&output.stderr).trim()
@@ -109,15 +149,65 @@ impl SystemProxyController {
         if output.status.success() {
             return Ok(());
         }
-        bail!(
+        anyhow::bail!(
             "networksetup failed for service {}: {}",
             self.network_service,
             String::from_utf8_lossy(&output.stderr).trim()
         )
     }
 
-    #[cfg(not(target_os = "macos"))]
-    async fn run(&self, _args: &[&str]) -> anyhow::Result<()> {
-        bail!("automatic system proxy control is currently implemented for macOS only")
+    #[cfg(target_os = "windows")]
+    fn windows_proxy_server(&self) -> String {
+        format!(
+            "http={host}:{port};https={host}:{port}",
+            host = self.host,
+            port = self.port
+        )
+    }
+
+    #[cfg(target_os = "windows")]
+    async fn write_windows_value(&self, name: &str, value_type: &str, value: &str) -> anyhow::Result<()> {
+        let output = Command::new("reg.exe")
+            .args([
+                "add",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                "/v",
+                name,
+                "/t",
+                value_type,
+                "/d",
+                value,
+                "/f",
+            ])
+            .output()
+            .await
+            .context("failed to run Windows reg.exe")?;
+        if output.status.success() {
+            return Ok(());
+        }
+        anyhow::bail!(
+            "failed to update Windows system proxy: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+    }
+
+    #[cfg(target_os = "windows")]
+    async fn read_windows_proxy_enabled(&self) -> anyhow::Result<bool> {
+        let output = Command::new("reg.exe")
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                "/v",
+                "ProxyEnable",
+            ])
+            .output()
+            .await
+            .context("failed to run Windows reg.exe")?;
+        if !output.status.success() {
+            return Ok(false);
+        }
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .any(|value| value.eq_ignore_ascii_case("0x1")))
     }
 }

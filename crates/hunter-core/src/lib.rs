@@ -30,6 +30,12 @@ mod proxy_engine;
 mod runtime;
 pub use runtime::{CaptureRuntimeStatus, HunterRuntime};
 
+mod traffic;
+pub use traffic::{
+    EditableRequest, InterceptAction, InterceptResolution, MockRule, PendingIntercept,
+    ReplayResult, SharedTrafficController, TrafficController,
+};
+
 mod system_proxy;
 pub use system_proxy::{SystemProxyController, SystemProxyStatus};
 

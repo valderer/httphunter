@@ -1,4 +1,9 @@
-use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use http::{header, HeaderValue, Method, Request, Response, StatusCode, Uri};
@@ -15,17 +20,111 @@ use tokio::{
 
 use crate::mitm;
 use crate::{
-    AppConfig, CaStore, HeaderEntry, HttpSession, MemoryStore, RequestRecord, ResponseRecord,
+    AppConfig, CaStore, EditableRequest, HeaderEntry, HttpSession, InterceptAction, MemoryStore,
+    ReplayResult, RequestRecord, ResponseRecord, SharedTrafficController,
 };
 
 pub(crate) type ProxyBody = Full<hyper::body::Bytes>;
 type HttpClient = Client<HttpConnector, ProxyBody>;
+
+pub(crate) async fn replay(
+    request: EditableRequest,
+    store: Arc<MemoryStore>,
+    config: &AppConfig,
+) -> ReplayResult {
+    let started_at = chrono::Utc::now();
+    let uri = match request.url.parse::<Uri>() {
+        Ok(uri) => uri,
+        Err(_) => return failed_replay(started_at, request, store, "invalid request URL").await,
+    };
+    if uri.scheme_str() == Some("https") {
+        return crate::mitm::replay_https(request, store, config).await;
+    }
+    if uri.scheme_str() != Some("http") {
+        return failed_replay(started_at, request, store, "only HTTP and HTTPS URLs can be replayed").await;
+    }
+    let mut builder = Request::builder().method(request.method.as_str()).uri(uri);
+    for header in &request.headers {
+        if !header.name.eq_ignore_ascii_case("host") && !is_hop_by_hop_name(&header.name) {
+            builder = builder.header(header.name.as_str(), header.value.as_str());
+        }
+    }
+    let upstream = match builder.body(Full::new(hyper::body::Bytes::from(request.body.clone()))) {
+        Ok(request) => request,
+        Err(error) => return failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    let client = build_client(config);
+    let response = match tokio::time::timeout(
+        Duration::from_millis(config.proxy.request_timeout_ms),
+        client.request(upstream),
+    )
+    .await
+    {
+        Ok(Ok(response)) => response,
+        Ok(Err(error)) => return failed_replay(started_at, request, store, &error.to_string()).await,
+        Err(_) => return failed_replay(started_at, request, store, "replay request timed out").await,
+    };
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = match response.into_body().collect().await {
+        Ok(body) => body.to_bytes().to_vec(),
+        Err(error) => return failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    let header_entries = headers
+        .iter()
+        .filter(|(name, _)| !is_hop_by_hop(name))
+        .map(|(name, value)| HeaderEntry::new(name.as_str(), value))
+        .collect();
+    completed_replay(started_at, request, status.as_u16(), header_entries, body, store, None).await
+}
+
+pub(crate) async fn completed_replay(
+    started_at: chrono::DateTime<chrono::Utc>,
+    request: EditableRequest,
+    status: u16,
+    headers: Vec<HeaderEntry>,
+    body: Vec<u8>,
+    store: Arc<MemoryStore>,
+    error: Option<String>,
+) -> ReplayResult {
+    let mime_type = headers
+        .iter()
+        .find(|header| header.name.eq_ignore_ascii_case("content-type"))
+        .map(|header| header.value.clone());
+    let session = HttpSession::completed(
+        started_at,
+        "127.0.0.1:0".parse().expect("static localhost address"),
+        RequestRecord::new(request.method, request.url, request.headers, request.body),
+        ResponseRecord::new(status, headers, mime_type, body),
+    );
+    store.insert(session.clone()).await;
+    ReplayResult { session, error }
+}
+
+pub(crate) async fn failed_replay(
+    started_at: chrono::DateTime<chrono::Utc>,
+    request: EditableRequest,
+    store: Arc<MemoryStore>,
+    error: &str,
+) -> ReplayResult {
+    completed_replay(
+        started_at,
+        request,
+        599,
+        vec![HeaderEntry { name: "content-type".to_owned(), value: "text/plain; charset=utf-8".to_owned() }],
+        error.as_bytes().to_vec(),
+        store,
+        Some(error.to_owned()),
+    )
+    .await
+}
 
 pub async fn serve(
     listener: TcpListener,
     config: AppConfig,
     mitm_enabled: bool,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     mut shutdown: watch::Receiver<bool>,
 ) -> Result<()> {
     let listen = listener
@@ -36,6 +135,7 @@ pub async fn serve(
     let client = Arc::new(client);
     let ca = CaStore::default()?;
     let mitm_exclude = config.proxy.mitm_exclude.clone();
+    let allow_lan_clients = config.proxy.allow_lan_clients;
 
     tracing::info!(%listen, "HTTP proxy listening");
 
@@ -45,10 +145,15 @@ pub async fn serve(
                 let (stream, peer) = result.context("failed to accept client connection")?;
                 let client = Arc::clone(&client);
                 let store = Arc::clone(&store);
+                let traffic = Arc::clone(&traffic);
                 let ca = ca.clone();
                 let mitm_exclude = mitm_exclude.clone();
+                if allow_lan_clients && !is_private_network_client(peer.ip()) {
+                    tracing::warn!(%peer, "rejected non-private client for LAN proxy");
+                    continue;
+                }
                 tokio::spawn(async move {
-                    if let Err(error) = serve_client(stream, peer, client, store, ca, mitm_enabled, mitm_exclude, timeout).await {
+                    if let Err(error) = serve_client(stream, peer, client, store, traffic, ca, mitm_enabled, mitm_exclude, timeout).await {
                         tracing::debug!(%peer, %error, "client connection ended with an error");
                     }
                 });
@@ -65,6 +170,52 @@ pub async fn serve(
     }
 }
 
+fn is_private_network_client(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => {
+            address.is_private()
+                || address.is_loopback()
+                || address.is_link_local()
+                || address == Ipv4Addr::UNSPECIFIED
+        }
+        IpAddr::V6(address) => {
+            address.is_loopback()
+                || address.is_unicast_link_local()
+                || (address.segments()[0] & 0xfe00) == 0xfc00
+                || address == Ipv6Addr::UNSPECIFIED
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_private_network_client;
+    use std::net::IpAddr;
+
+    #[test]
+    fn accepts_private_and_local_clients() {
+        for address in [
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "127.0.0.1",
+            "169.254.10.1",
+            "::1",
+            "fe80::1",
+            "fd00::1",
+        ] {
+            assert!(is_private_network_client(address.parse::<IpAddr>().unwrap()));
+        }
+    }
+
+    #[test]
+    fn rejects_public_clients() {
+        for address in ["1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"] {
+            assert!(!is_private_network_client(address.parse::<IpAddr>().unwrap()));
+        }
+    }
+}
+
 fn build_client(config: &AppConfig) -> HttpClient {
     let mut connector = HttpConnector::new();
     connector.set_connect_timeout(Some(Duration::from_millis(config.proxy.connect_timeout_ms)));
@@ -77,6 +228,7 @@ async fn serve_client(
     peer: SocketAddr,
     client: Arc<HttpClient>,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     ca: CaStore,
     mitm_enabled: bool,
     mitm_exclude: Vec<String>,
@@ -86,6 +238,7 @@ async fn serve_client(
     let service = service_fn(move |request| {
         let client = Arc::clone(&client);
         let store = Arc::clone(&store);
+        let traffic = Arc::clone(&traffic);
         let ca = ca.clone();
         let mitm_exclude = mitm_exclude.clone();
         async move {
@@ -95,6 +248,7 @@ async fn serve_client(
                     peer,
                     client,
                     store,
+                    traffic,
                     ca,
                     mitm_enabled,
                     mitm_exclude,
@@ -120,13 +274,13 @@ async fn handle_request(
     peer: SocketAddr,
     client: Arc<HttpClient>,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     ca: CaStore,
     mitm_enabled: bool,
     mitm_exclude: Vec<String>,
     timeout: Duration,
 ) -> Response<ProxyBody> {
     let started_at = chrono::Utc::now();
-    let request_method = request.method().to_string();
     let request_uri = request.uri().to_string();
     tracing::info!(%peer, method = %request.method(), uri = %request.uri(), "request received");
 
@@ -135,6 +289,7 @@ async fn handle_request(
             request,
             peer,
             store,
+            traffic,
             ca,
             mitm_enabled,
             mitm_exclude,
@@ -142,11 +297,6 @@ async fn handle_request(
         )
         .await;
     }
-
-    let uri = match absolute_uri(request.uri()) {
-        Ok(uri) => uri,
-        Err(message) => return text_response(StatusCode::BAD_REQUEST, &message),
-    };
 
     let (parts, body) = request.into_parts();
     let body = match body.collect().await {
@@ -156,23 +306,51 @@ async fn handle_request(
             return text_response(StatusCode::BAD_REQUEST, "failed to read request body");
         }
     };
-    let request_body_for_capture = body.to_vec();
-
-    let request_headers = parts
+    let request_headers: Vec<_> = parts
         .headers
         .iter()
         .filter(|(name, _)| !is_hop_by_hop(name))
         .map(|(name, value)| HeaderEntry::new(name.as_str(), value))
         .collect();
 
-    let mut builder = Request::builder().method(parts.method).uri(uri);
-    for (name, value) in &parts.headers {
-        if !is_hop_by_hop(name) && name != header::HOST {
-            builder = builder.header(name, value);
+    let mut editable = EditableRequest {
+        method: parts.method.to_string(),
+        url: request_uri,
+        headers: request_headers,
+        body: body.to_vec(),
+    };
+    if let Some(rule) = traffic.matching_mock(&editable).await {
+        let (status, headers, body) = crate::traffic::mock_response(&rule);
+        return static_captured_response(started_at, peer, editable, status, headers, body, store).await;
+    }
+    if let Some(resolution) = traffic.intercept(editable.clone()).await {
+        editable = resolution.request;
+        if matches!(resolution.action, InterceptAction::Drop) {
+            return static_captured_response(
+                started_at,
+                peer,
+                editable,
+                StatusCode::FORBIDDEN,
+                vec![HeaderEntry { name: "content-type".to_owned(), value: "text/plain; charset=utf-8".to_owned() }],
+                b"request dropped by httphunter".to_vec(),
+                store,
+            ).await;
+        }
+    }
+    let uri = match editable.url.parse::<Uri>().ok().and_then(|uri| absolute_uri(&uri).ok()) {
+        Some(uri) => uri,
+        None => return text_response(StatusCode::BAD_REQUEST, "request URL must be absolute"),
+    };
+    let mut builder = Request::builder().method(editable.method.as_str()).uri(uri);
+    for header in &editable.headers {
+        if !header.name.eq_ignore_ascii_case("host") && !is_hop_by_hop_name(&header.name) {
+            builder = builder.header(header.name.as_str(), header.value.as_str());
         }
     }
 
-    let upstream_request = match builder.body(Full::new(body)) {
+    let upstream_request = match builder.body(Full::new(hyper::body::Bytes::from(
+        editable.body.clone(),
+    ))) {
         Ok(request) => request,
         Err(error) => {
             tracing::warn!(%peer, %error, "failed to build upstream request");
@@ -217,18 +395,8 @@ async fn handle_request(
     let session = HttpSession::completed(
         started_at,
         peer,
-        RequestRecord::new(
-            request_method,
-            request_uri,
-            request_headers,
-            request_body_for_capture,
-        ),
-        ResponseRecord::new(
-            status.as_u16(),
-            response_headers,
-            mime_type,
-            body_for_capture(&body),
-        ),
+        RequestRecord::new(editable.method, editable.url, editable.headers, editable.body),
+        ResponseRecord::new(status.as_u16(), response_headers, mime_type, body_for_capture(&body)),
     );
     tracing::debug!(session_id = %session.id, "captured HTTP session");
     store.insert(session).await;
@@ -248,6 +416,7 @@ async fn handle_connect(
     request: Request<Incoming>,
     peer: SocketAddr,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     ca: CaStore,
     mitm_enabled: bool,
     mitm_exclude: Vec<String>,
@@ -264,7 +433,7 @@ async fn handle_connect(
             match on_upgrade.await {
                 Ok(upgraded) => {
                     if let Err(error) =
-                        mitm::serve(upgraded, authority, ca, store, peer, timeout).await
+                        mitm::serve(upgraded, authority, ca, store, traffic, peer, timeout).await
                     {
                         tracing::warn!(%peer, %error, "MITM tunnel failed");
                     }
@@ -351,6 +520,59 @@ pub(crate) fn is_hop_by_hop(name: &header::HeaderName) -> bool {
             | "transfer-encoding"
             | "upgrade"
     )
+}
+
+pub(crate) fn is_hop_by_hop_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "connection"
+            | "keep-alive"
+            | "proxy-authenticate"
+            | "proxy-authorization"
+            | "te"
+            | "trailer"
+            | "transfer-encoding"
+            | "upgrade"
+    )
+}
+
+pub(crate) async fn static_captured_response(
+    started_at: chrono::DateTime<chrono::Utc>,
+    peer: SocketAddr,
+    request: EditableRequest,
+    status: StatusCode,
+    headers: Vec<HeaderEntry>,
+    body: Vec<u8>,
+    store: Arc<MemoryStore>,
+) -> Response<ProxyBody> {
+    let mime_type = headers
+        .iter()
+        .find(|header| header.name.eq_ignore_ascii_case("content-type"))
+        .map(|header| header.value.clone());
+    let session = HttpSession::completed(
+        started_at,
+        peer,
+        RequestRecord::new(request.method, request.url, request.headers, request.body),
+        ResponseRecord::new(status.as_u16(), headers.clone(), mime_type, body.clone()),
+    );
+    store.insert(session).await;
+    response_from_entries(status, &headers, body)
+}
+
+pub(crate) fn response_from_entries(
+    status: StatusCode,
+    headers: &[HeaderEntry],
+    body: Vec<u8>,
+) -> Response<ProxyBody> {
+    let mut response = Response::builder().status(status);
+    for header in headers {
+        if !is_hop_by_hop_name(&header.name) {
+            response = response.header(header.name.as_str(), header.value.as_str());
+        }
+    }
+    response
+        .body(Full::new(hyper::body::Bytes::from(body)))
+        .unwrap_or_else(|_| text_response(StatusCode::BAD_GATEWAY, "failed to build response"))
 }
 
 fn text_response(status: StatusCode, message: &str) -> Response<ProxyBody> {

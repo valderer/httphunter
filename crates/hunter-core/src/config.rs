@@ -21,6 +21,7 @@ pub struct AppConfig {
 #[serde(default)]
 pub struct ProxyConfig {
     pub listen: SocketAddr,
+    pub allow_lan_clients: bool,
     pub mitm: bool,
     pub mitm_exclude: Vec<String>,
     pub connect_timeout_ms: u64,
@@ -70,6 +71,7 @@ impl Default for ProxyConfig {
     fn default() -> Self {
         Self {
             listen: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080),
+            allow_lan_clients: false,
             mitm: false,
             mitm_exclude: Vec::new(),
             connect_timeout_ms: 10_000,

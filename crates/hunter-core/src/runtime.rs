@@ -8,7 +8,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{proxy_engine, AppConfig, HttpSession, MemoryStore, SessionSummary};
+use crate::{
+    proxy_engine, AppConfig, EditableRequest, HttpSession, MemoryStore, ReplayResult, SessionSummary,
+    SharedTrafficController, TrafficController,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CaptureRuntimeStatus {
@@ -37,23 +40,52 @@ pub struct HunterRuntime {
     listen: SocketAddr,
     mitm_enabled: bool,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     state: Mutex<RuntimeState>,
 }
 
 impl HunterRuntime {
     pub fn new(config: AppConfig, listen: SocketAddr, mitm_enabled: bool) -> Self {
-        let store = Arc::new(MemoryStore::new(config.capture.enabled));
+        Self::with_store(
+            config.clone(),
+            listen,
+            mitm_enabled,
+            Arc::new(MemoryStore::new(config.capture.enabled)),
+        )
+    }
+
+    pub fn with_store(
+        config: AppConfig,
+        listen: SocketAddr,
+        mitm_enabled: bool,
+        store: Arc<MemoryStore>,
+    ) -> Self {
+        Self::with_store_and_traffic(config, listen, mitm_enabled, store, Arc::new(TrafficController::new()))
+    }
+
+    pub fn with_store_and_traffic(
+        config: AppConfig,
+        listen: SocketAddr,
+        mitm_enabled: bool,
+        store: Arc<MemoryStore>,
+        traffic: SharedTrafficController,
+    ) -> Self {
         Self {
             config,
             listen,
             mitm_enabled,
             store,
+            traffic,
             state: Mutex::new(RuntimeState::stopped()),
         }
     }
 
     pub fn store(&self) -> Arc<MemoryStore> {
         Arc::clone(&self.store)
+    }
+
+    pub fn traffic(&self) -> SharedTrafficController {
+        Arc::clone(&self.traffic)
     }
 
     pub async fn start(&self) -> anyhow::Result<CaptureRuntimeStatus> {
@@ -68,9 +100,10 @@ impl HunterRuntime {
         let (shutdown, shutdown_rx) = watch::channel(false);
         let config = self.config.clone();
         let store = Arc::clone(&self.store);
+        let traffic = Arc::clone(&self.traffic);
         let mitm_enabled = self.mitm_enabled;
         let task = tokio::spawn(async move {
-            proxy_engine::serve(listener, config, mitm_enabled, store, shutdown_rx).await
+            proxy_engine::serve(listener, config, mitm_enabled, store, traffic, shutdown_rx).await
         });
         state.shutdown = Some(shutdown);
         state.task = Some(task);
@@ -118,6 +151,10 @@ impl HunterRuntime {
         self.store.clear().await;
     }
 
+    pub async fn replay(&self, request: EditableRequest) -> ReplayResult {
+        proxy_engine::replay(request, Arc::clone(&self.store), &self.config).await
+    }
+
     pub fn set_capture_enabled(&self, enabled: bool) {
         self.store.set_enabled(enabled);
     }
@@ -147,5 +184,17 @@ mod tests {
         assert!(!status.running);
         assert!(status.mitm_enabled);
         assert!(!status.capture_enabled);
+    }
+
+    #[test]
+    fn runtime_can_reuse_an_existing_store() {
+        let store = Arc::new(MemoryStore::new(true));
+        let runtime = HunterRuntime::with_store(
+            AppConfig::default(),
+            "127.0.0.1:18080".parse().unwrap(),
+            true,
+            Arc::clone(&store),
+        );
+        assert!(Arc::ptr_eq(&store, &runtime.store()));
     }
 }

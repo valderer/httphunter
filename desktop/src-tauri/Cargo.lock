@@ -1426,6 +1426,7 @@ dependencies = [
  "serde",
  "tauri",
  "tauri-build",
+ "tokio",
 ]
 
 [[package]]
@@ -1435,6 +1436,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dirs 5.0.1",
+ "flate2",
  "http",
  "http-body-util",
  "hyper",

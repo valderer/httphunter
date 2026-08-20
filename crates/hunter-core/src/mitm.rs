@@ -13,17 +13,89 @@ use tokio::{net::TcpStream, sync::Mutex};
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
 use crate::{
-    proxy_engine::{is_hop_by_hop, ProxyBody},
-    CaStore, HeaderEntry, HttpSession, MemoryStore, RequestRecord, ResponseRecord,
+    proxy_engine::{
+        is_hop_by_hop, is_hop_by_hop_name, static_captured_response, ProxyBody,
+    },
+    CaStore, EditableRequest, HeaderEntry, HttpSession, InterceptAction, MemoryStore,
+    RequestRecord, ResponseRecord, SharedTrafficController,
 };
 
 type UpstreamSender = http1::SendRequest<ProxyBody>;
+
+pub(crate) async fn replay_https(
+    request: EditableRequest,
+    store: Arc<MemoryStore>,
+    config: &crate::AppConfig,
+) -> crate::ReplayResult {
+    let started_at = chrono::Utc::now();
+    let uri = match request.url.parse::<http::Uri>() {
+        Ok(uri) => uri,
+        Err(_) => return crate::proxy_engine::failed_replay(started_at, request, store, "invalid HTTPS URL").await,
+    };
+    let Some(authority) = uri.authority().map(|authority| authority.to_string()) else {
+        return crate::proxy_engine::failed_replay(started_at, request, store, "HTTPS URL requires a host").await;
+    };
+    let host = uri.host().unwrap_or_default().to_owned();
+    let port = uri.port_u16().unwrap_or(443);
+    let upstream = match tokio::time::timeout(
+        Duration::from_millis(config.proxy.connect_timeout_ms),
+        TcpStream::connect((host.as_str(), port)),
+    )
+    .await
+    {
+        Ok(Ok(stream)) => stream,
+        Ok(Err(error)) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+        Err(_) => return crate::proxy_engine::failed_replay(started_at, request, store, "replay connection timed out").await,
+    };
+    let mut roots = RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let connector = TlsConnector::from(Arc::new(
+        ClientConfig::builder().with_root_certificates(roots).with_no_client_auth(),
+    ));
+    let server_name = match ServerName::try_from(host.clone()) {
+        Ok(name) => name,
+        Err(error) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    let upstream_tls = match connector.connect(server_name, upstream).await {
+        Ok(stream) => stream,
+        Err(error) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    let (mut sender, connection) = match http1::handshake(TokioIo::new(upstream_tls)).await {
+        Ok(connection) => connection,
+        Err(error) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    tokio::spawn(async move { let _ = connection.await; });
+    let path = uri.path_and_query().cloned().unwrap_or_else(|| http::uri::PathAndQuery::from_static("/"));
+    let mut builder = Request::builder().method(request.method.as_str()).uri(path).header(header::HOST, authority);
+    for header in &request.headers {
+        if !header.name.eq_ignore_ascii_case("host") && !is_hop_by_hop_name(&header.name) {
+            builder = builder.header(header.name.as_str(), header.value.as_str());
+        }
+    }
+    let upstream_request = match builder.body(Full::new(hyper::body::Bytes::from(request.body.clone()))) {
+        Ok(request) => request,
+        Err(error) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    let response = match tokio::time::timeout(Duration::from_millis(config.proxy.request_timeout_ms), sender.send_request(upstream_request)).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(error)) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+        Err(_) => return crate::proxy_engine::failed_replay(started_at, request, store, "replay request timed out").await,
+    };
+    let status = response.status().as_u16();
+    let headers = response.headers().iter().filter(|(name, _)| !is_hop_by_hop(name)).map(|(name, value)| HeaderEntry::new(name.as_str(), value)).collect();
+    let body = match response.into_body().collect().await {
+        Ok(body) => body.to_bytes().to_vec(),
+        Err(error) => return crate::proxy_engine::failed_replay(started_at, request, store, &error.to_string()).await,
+    };
+    crate::proxy_engine::completed_replay(started_at, request, status, headers, body, store, None).await
+}
 
 pub async fn serve(
     upgraded: hyper::upgrade::Upgraded,
     authority: String,
     ca: CaStore,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     peer: SocketAddr,
     timeout: Duration,
 ) -> Result<()> {
@@ -78,10 +150,11 @@ pub async fn serve(
     let service = service_fn(move |request| {
         let sender = Arc::clone(&sender);
         let store = Arc::clone(&store);
+        let traffic = Arc::clone(&traffic);
         let authority = authority.clone();
         async move {
             Ok::<_, std::convert::Infallible>(
-                forward_request(request, authority, peer, sender, store, timeout).await,
+                forward_request(request, authority, peer, sender, store, traffic, timeout).await,
             )
         }
     });
@@ -99,36 +172,70 @@ async fn forward_request(
     peer: SocketAddr,
     sender: Arc<Mutex<UpstreamSender>>,
     store: Arc<MemoryStore>,
+    traffic: SharedTrafficController,
     timeout: Duration,
 ) -> Response<ProxyBody> {
     let started_at = chrono::Utc::now();
     let method = request.method().clone();
     let relative_uri = request.uri().clone();
     tracing::info!(%peer, method = %method, uri = %relative_uri, "HTTPS request decrypted");
-    let target_uri = relative_uri.clone();
     let upstream_host = upstream_host_header(&authority);
     let (parts, body) = request.into_parts();
     let body = match body.collect().await {
         Ok(body) => body.to_bytes(),
         Err(error) => return text_response(StatusCode::BAD_REQUEST, &error.to_string()),
     };
-    let request_headers = parts
+    let request_headers: Vec<_> = parts
         .headers
         .iter()
         .filter(|(name, _)| !is_hop_by_hop(name))
         .map(|(name, value)| HeaderEntry::new(name.as_str(), value))
         .collect();
 
-    let mut builder = Request::builder()
-        .method(method)
-        .uri(target_uri)
-        .header(header::HOST, upstream_host.as_str());
-    for (name, value) in &parts.headers {
-        if !is_hop_by_hop(name) && name != header::HOST {
-            builder = builder.header(name, value);
+    let display_url = normalized_https_url(&authority, &relative_uri);
+    let mut editable = EditableRequest {
+        method: method.to_string(),
+        url: display_url,
+        headers: request_headers,
+        body: body.to_vec(),
+    };
+    if let Some(rule) = traffic.matching_mock(&editable).await {
+        let (status, headers, body) = crate::traffic::mock_response(&rule);
+        return static_captured_response(started_at, peer, editable, status, headers, body, store).await;
+    }
+    if let Some(resolution) = traffic.intercept(editable.clone()).await {
+        editable = resolution.request;
+        if matches!(resolution.action, InterceptAction::Drop) {
+            return static_captured_response(
+                started_at,
+                peer,
+                editable,
+                StatusCode::FORBIDDEN,
+                vec![HeaderEntry { name: "content-type".to_owned(), value: "text/plain; charset=utf-8".to_owned() }],
+                b"request dropped by httphunter".to_vec(),
+                store,
+            ).await;
         }
     }
-    let upstream_request = match builder.body(Full::new(body.clone())) {
+    let edited_uri = match editable.url.parse::<http::Uri>() {
+        Ok(uri) if is_same_https_target(&uri, &authority) => uri
+            .path_and_query()
+            .cloned()
+            .unwrap_or_else(|| http::uri::PathAndQuery::from_static("/")),
+        _ => return text_response(StatusCode::BAD_REQUEST, "HTTPS interception cannot change the target host"),
+    };
+    let mut builder = Request::builder()
+        .method(editable.method.as_str())
+        .uri(edited_uri)
+        .header(header::HOST, upstream_host.as_str());
+    for header in &editable.headers {
+        if !header.name.eq_ignore_ascii_case("host") {
+            builder = builder.header(header.name.as_str(), header.value.as_str());
+        }
+    }
+    let upstream_request = match builder.body(Full::new(hyper::body::Bytes::from(
+        editable.body.clone(),
+    ))) {
         Ok(request) => request,
         Err(error) => return text_response(StatusCode::BAD_REQUEST, &error.to_string()),
     };
@@ -158,15 +265,14 @@ async fn forward_request(
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
-    let display_url = normalized_https_url(&authority, &relative_uri);
     let session = HttpSession::completed(
         started_at,
         peer,
         RequestRecord::new(
-            parts.method.to_string(),
-            display_url,
-            request_headers,
-            body.to_vec(),
+            editable.method,
+            editable.url,
+            editable.headers,
+            editable.body,
         ),
         ResponseRecord::new(
             status.as_u16(),
@@ -210,4 +316,44 @@ fn normalized_https_url(authority: &str, uri: &http::Uri) -> String {
         _ => authority,
     };
     format!("https://{}{}", display_authority, uri)
+}
+
+fn is_same_https_target(uri: &http::Uri, tunnel_authority: &str) -> bool {
+    let Ok(tunnel) = tunnel_authority.parse::<http::uri::Authority>() else {
+        return false;
+    };
+    uri.scheme_str() == Some("https")
+        && uri
+            .host()
+            .is_some_and(|host| host.eq_ignore_ascii_case(tunnel.host()))
+        && uri.port_u16().unwrap_or(443) == tunnel.port_u16().unwrap_or(443)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_same_https_target;
+
+    #[test]
+    fn accepts_default_https_port_with_or_without_explicit_port() {
+        assert!(is_same_https_target(
+            &"https://example.com/path".parse().unwrap(),
+            "example.com:443"
+        ));
+        assert!(is_same_https_target(
+            &"https://example.com:443/path".parse().unwrap(),
+            "example.com"
+        ));
+    }
+
+    #[test]
+    fn rejects_a_different_https_target() {
+        assert!(!is_same_https_target(
+            &"https://other.example/path".parse().unwrap(),
+            "example.com:443"
+        ));
+        assert!(!is_same_https_target(
+            &"https://example.com:8443/path".parse().unwrap(),
+            "example.com:443"
+        ));
+    }
 }

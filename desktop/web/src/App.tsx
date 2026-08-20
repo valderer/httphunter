@@ -19,10 +19,37 @@ type SystemProxyStatus = {
   network_service: string;
 };
 
+type MobileCaptureStatus = {
+  enabled: boolean;
+  listen: string;
+  lan_addresses: string[];
+};
+
 type HeaderEntry = {
   name: string;
   value: string;
 };
+
+type EditableRequest = {
+  method: string;
+  url: string;
+  headers: HeaderEntry[];
+  body: number[];
+};
+
+type PendingIntercept = { id: string; request: EditableRequest };
+
+type MockRule = {
+  id: string;
+  enabled: boolean;
+  method: string;
+  url_pattern: string;
+  status: number;
+  headers: HeaderEntry[];
+  body: number[];
+};
+
+type ReplayResult = { session: HttpSession; error: string | null };
 
 type SessionSummary = {
   id: string;
@@ -118,6 +145,7 @@ function isStaticResource(session: SessionSummary) {
 export function App() {
   const [capture, setCapture] = useState<CaptureRuntimeStatus | null>(null);
   const [systemProxy, setSystemProxy] = useState<SystemProxyStatus | null>(null);
+  const [mobileCapture, setMobileCapture] = useState<MobileCaptureStatus | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [selected, setSelected] = useState<HttpSession | null>(null);
   const [certificate, setCertificate] = useState<CertificateInfo | null>(null);
@@ -126,6 +154,16 @@ export function App() {
   const [generatingCertificate, setGeneratingCertificate] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileCaptureOpen, setMobileCaptureOpen] = useState(false);
+  const [changingMobileCapture, setChangingMobileCapture] = useState(false);
+  const [interceptEnabled, setInterceptEnabled] = useState(false);
+  const [pendingIntercepts, setPendingIntercepts] = useState<PendingIntercept[]>([]);
+  const [mockRules, setMockRules] = useState<MockRule[]>([]);
+  const [mockOpen, setMockOpen] = useState(false);
+  const [mockDraft, setMockDraft] = useState<MockRule | null>(null);
+  const [importingMock, setImportingMock] = useState(false);
+  const [editor, setEditor] = useState<{ kind: 'replay' | 'intercept'; id?: string; request: EditableRequest } | null>(null);
+  const [replaying, setReplaying] = useState(false);
   const [filters, setFilters] = useState<SessionFilters>(loadStoredFilters);
   const [draftFilters, setDraftFilters] = useState<SessionFilters>(loadStoredFilters);
 
@@ -161,14 +199,22 @@ export function App() {
 
   async function refreshCapture() {
     try {
-      const [status, summaries] = await Promise.all([
+      const [status, summaries, proxyStatus, mobileStatus, intercept, pending, rules] = await Promise.all([
         invoke<CaptureRuntimeStatus>('capture_status'),
         invoke<SessionSummary[]>('list_sessions'),
+        invoke<SystemProxyStatus>('system_proxy_status'),
+        invoke<MobileCaptureStatus>('mobile_capture_status'),
+        invoke<boolean>('intercept_enabled'),
+        invoke<PendingIntercept[]>('pending_intercepts'),
+        invoke<MockRule[]>('list_mock_rules'),
       ]);
-      const proxyStatus = await invoke<SystemProxyStatus>('system_proxy_status');
       setCapture(status);
       setSessions([...summaries].reverse());
       setSystemProxy(proxyStatus);
+      setMobileCapture(mobileStatus);
+      setInterceptEnabled(intercept);
+      setPendingIntercepts(pending);
+      setMockRules(rules);
     } catch (value) {
       showError(value);
     }
@@ -234,14 +280,94 @@ export function App() {
     }
   }
 
+  async function changeMobileCapture(enabled: boolean) {
+    setChangingMobileCapture(true);
+    setError(null);
+    try {
+      setMobileCapture(await invoke<MobileCaptureStatus>('set_mobile_capture', { enabled }));
+      await refreshCapture();
+    } catch (value) {
+      showError(value);
+    } finally {
+      setChangingMobileCapture(false);
+      void refreshCapture();
+    }
+  }
+
+  async function toggleIntercept() {
+    try {
+      const enabled = !interceptEnabled;
+      await invoke('set_intercept_enabled', { enabled });
+      setInterceptEnabled(enabled);
+    } catch (value) { showError(value); }
+  }
+
+  async function saveMock(rule: MockRule) {
+    try {
+      await invoke<MockRule>('save_mock_rule', { rule });
+      setMockRules(await invoke<MockRule[]>('list_mock_rules'));
+    } catch (value) { showError(value); }
+  }
+
+  async function importSelectedAsMock() {
+    if (!selected) return;
+    setImportingMock(true);
+    setError(null);
+    try {
+      const rule = await invoke<MockRule>('save_mock_rule', {
+        rule: {
+          id: '',
+          enabled: true,
+          method: selected.request.method,
+          url_pattern: selected.request.url,
+          status: selected.response.status,
+          headers: selected.response.headers,
+          body: selected.response.body,
+        },
+      });
+      setMockRules((rules) => [...rules, rule]);
+      setMockDraft(rule);
+      setMockOpen(true);
+    } catch (value) {
+      showError(value);
+    } finally {
+      setImportingMock(false);
+    }
+  }
+
+  async function removeMock(id: string) {
+    try {
+      await invoke('delete_mock_rule', { id });
+      setMockRules(await invoke<MockRule[]>('list_mock_rules'));
+    } catch (value) { showError(value); }
+  }
+
+  async function submitEditor(action: 'forward' | 'drop' | 'replay', request: EditableRequest) {
+    setReplaying(true);
+    try {
+      if (action === 'replay') {
+        const result = await invoke<ReplayResult>('replay_request', { request });
+        setSelected(result.session);
+        setEditor(null);
+        if (result.error) showError(result.error);
+      } else if (editor?.id) {
+        await invoke('resolve_intercept', {
+          id: editor.id,
+          resolution: { action: action === 'forward' ? 'Forward' : 'Drop', request },
+        });
+        setEditor(null);
+      }
+      await refreshCapture();
+    } catch (value) { showError(value); } finally { setReplaying(false); }
+  }
+
   return (
     <main className="capture-app">
       <header className="app-header">
-        <div className="brand"><h1>httphunter</h1><span>Capture console</span></div>
+        <div className="brand"><h1>httphunter</h1><span>Capture console</span><span className={`system-proxy ${systemProxy?.enabled ? 'enabled' : ''}`}>Proxy {systemProxy?.enabled ? 'on' : 'off'}</span></div>
         <div className="header-actions">
-          <span className={`system-proxy ${systemProxy?.enabled ? 'enabled' : ''}`}>
-            Proxy {systemProxy?.enabled ? 'on' : 'off'}
-          </span>
+          <button className={interceptEnabled ? 'intercept-active' : ''} onClick={() => void toggleIntercept()} title="Pause matching decrypted requests before forwarding">Intercept{pendingIntercepts.length ? ` (${pendingIntercepts.length})` : ''}</button>
+          <button className={mockRules.some((rule) => rule.enabled) ? 'mock-active' : ''} onClick={() => { setMockDraft(null); setMockOpen(true); }} title="Configure mocked responses">Mock{mockRules.length ? ` (${mockRules.length})` : ''}</button>
           <button
             className={`capture-toggle ${capture?.running ? 'running' : 'stopped'}`}
             disabled={changingCapture || certificate?.exists === false}
@@ -250,6 +376,7 @@ export function App() {
           >
             <i /> {changingCapture ? 'Working...' : capture?.running ? 'Capturing' : 'Stopped'}
           </button>
+          <button className={mobileCapture?.enabled ? 'mobile-capture-active' : ''} onClick={() => setMobileCaptureOpen(true)} title="Configure capture from phones and other Wi-Fi devices">Mobile</button>
         </div>
       </header>
 
@@ -299,7 +426,7 @@ export function App() {
           {selected ? (
             <>
               <div className="detail-heading">
-                <div className="detail-meta"><b>{selected.request.method}</b><span className={statusClass(selected.response.status)}>{selected.response.status}</span></div>
+                <div className="detail-meta"><b>{selected.request.method}</b><span className={statusClass(selected.response.status)}>{selected.response.status}</span><button className="replay-button" onClick={() => setEditor({ kind: 'replay', request: selected.request })}>Replay</button><button className="mock-import-button" disabled={importingMock} onClick={() => void importSelectedAsMock()} title="Create an enabled Mock rule from this request and response">{importingMock ? 'Importing...' : 'Import Mock'}</button></div>
                 <h2>{selected.request.url}</h2>
               </div>
               <nav className="detail-tabs" aria-label="Request details">
@@ -332,12 +459,126 @@ export function App() {
           </section>
         </div>
       )}
+
+      {mobileCaptureOpen && (
+        <div className="filter-backdrop" role="presentation" onMouseDown={() => setMobileCaptureOpen(false)}>
+          <section className="mobile-dialog" role="dialog" aria-modal="true" aria-labelledby="mobile-capture-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="filter-dialog-header"><h2 id="mobile-capture-title">Mobile capture</h2><button onClick={() => setMobileCaptureOpen(false)} title="Close mobile capture settings">Close</button></header>
+            <div className="mobile-dialog-body">
+              <label className="mobile-switch">
+                <input
+                  type="checkbox"
+                  checked={mobileCapture?.enabled ?? false}
+                  disabled={changingMobileCapture}
+                  onChange={(event) => void changeMobileCapture(event.target.checked)}
+                />
+                <span>Allow Wi-Fi devices</span>
+              </label>
+              {mobileCapture?.enabled && (
+                <>
+                  <div className="mobile-proxy-values">
+                    <span>Server</span><b>{mobileCapture.lan_addresses[0] ?? 'Not detected'}</b>
+                    <span>Port</span><b>8080</b>
+                  </div>
+                  {mobileCapture.lan_addresses.length > 1 && <p className="mobile-note">Available addresses: {mobileCapture.lan_addresses.join(', ')}</p>}
+                  <p className="mobile-note">Set this server and port as the phone Wi-Fi manual proxy. HTTPS inspection also requires trusting the Local CA on that phone.</p>
+                  <p className="mobile-note">Only private-network clients are accepted. This does not change the Mac system proxy.</p>
+                </>
+              )}
+              {!mobileCapture?.enabled && <p className="mobile-note">When enabled, httphunter listens on this computer's Wi-Fi network so a phone can use it as a proxy.</p>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pendingIntercepts.length > 0 && !editor && (
+        <InterceptQueue pending={pendingIntercepts} onOpen={(pending) => setEditor({ kind: 'intercept', id: pending.id, request: pending.request })} />
+      )}
+
+      {editor && <RequestEditor editor={editor} busy={replaying} onClose={() => setEditor(null)} onSubmit={submitEditor} />}
+      {mockOpen && <MockDialog rules={mockRules} initialRule={mockDraft} onClose={() => { setMockOpen(false); setMockDraft(null); }} onSave={saveMock} onDelete={removeMock} />}
     </main>
   );
 }
 
 function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return <label className="filter-field"><span>{label}</span>{children}</label>;
+}
+
+function InterceptQueue({ pending, onOpen }: { pending: PendingIntercept[]; onOpen: (pending: PendingIntercept) => void }) {
+  return (
+    <div className="intercept-queue">
+      <span>{pending.length} request{pending.length === 1 ? '' : 's'} paused</span>
+      <button onClick={() => onOpen(pending[0])}>Review</button>
+    </div>
+  );
+}
+
+function RequestEditor({ editor, busy, onClose, onSubmit }: {
+  editor: { kind: 'replay' | 'intercept'; id?: string; request: EditableRequest };
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (action: 'forward' | 'drop' | 'replay', request: EditableRequest) => void;
+}) {
+  const [request, setRequest] = useState(editor.request);
+  const [headersText, setHeadersText] = useState(headersToText(editor.request.headers));
+  const [bodyText, setBodyText] = useState(decodeUtf8(editor.request.body) ?? '');
+  const update = () => ({ ...request, headers: textToHeaders(headersText), body: Array.from(new TextEncoder().encode(bodyText)) });
+  const title = editor.kind === 'replay' ? 'Replay request' : 'Intercepted request';
+  return (
+    <div className="filter-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="request-editor" role="dialog" aria-modal="true" aria-labelledby="request-editor-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="filter-dialog-header"><h2 id="request-editor-title">{title}</h2><button onClick={onClose}>Close</button></header>
+        <div className="request-editor-body">
+          <div className="editor-method-url"><input value={request.method} onChange={(event) => setRequest({ ...request, method: event.target.value.toUpperCase() })} aria-label="Method" /><input value={request.url} onChange={(event) => setRequest({ ...request, url: event.target.value })} aria-label="URL" /></div>
+          <FilterField label="Headers"><textarea value={headersText} onChange={(event) => setHeadersText(event.target.value)} spellCheck={false} placeholder="content-type: application/json" /></FilterField>
+          <FilterField label="Body"><textarea className="request-body-editor" value={bodyText} onChange={(event) => setBodyText(event.target.value)} spellCheck={false} /></FilterField>
+        </div>
+        <footer className="filter-dialog-footer">
+          {editor.kind === 'intercept' && <button className="drop-button" disabled={busy} onClick={() => onSubmit('drop', update())}>Drop</button>}
+          <button className="filter-apply" disabled={busy} onClick={() => onSubmit(editor.kind === 'replay' ? 'replay' : 'forward', update())}>{busy ? 'Sending...' : editor.kind === 'replay' ? 'Send' : 'Forward'}</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function MockDialog({ rules, initialRule, onClose, onSave, onDelete }: { rules: MockRule[]; initialRule: MockRule | null; onClose: () => void; onSave: (rule: MockRule) => void; onDelete: (id: string) => void }) {
+  const blank = (): MockRule => ({ id: '', enabled: true, method: '', url_pattern: '', status: 200, headers: [{ name: 'content-type', value: 'application/json; charset=utf-8' }], body: [] });
+  const [draft, setDraft] = useState<MockRule>(blank);
+  const [headersText, setHeadersText] = useState(headersToText(draft.headers));
+  const [bodyText, setBodyText] = useState('');
+  const edit = (rule: MockRule) => { setDraft(rule); setHeadersText(headersToText(rule.headers)); setBodyText(decodeUtf8(rule.body) ?? ''); };
+  useEffect(() => { if (initialRule) edit(initialRule); }, [initialRule?.id]);
+  const save = () => { onSave({ ...draft, headers: textToHeaders(headersText), body: Array.from(new TextEncoder().encode(bodyText)) }); setDraft(blank()); setHeadersText(headersToText(blank().headers)); setBodyText(''); };
+  return (
+    <div className="filter-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="mock-dialog" role="dialog" aria-modal="true" aria-labelledby="mock-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="filter-dialog-header"><h2 id="mock-title">Mock responses</h2><button onClick={onClose}>Close</button></header>
+        <div className="mock-dialog-body">
+          <div className="mock-rule-list">
+            {rules.map((rule) => <div className="mock-rule" key={rule.id}><button onClick={() => edit(rule)}>{rule.enabled ? 'On' : 'Off'} · {rule.method || 'Any'} · {rule.url_pattern}</button><button className="remove-button" onClick={() => onDelete(rule.id)}>Remove</button></div>)}
+            {!rules.length && <p className="mobile-note">No rules yet.</p>}
+          </div>
+          <label className="filter-checkbox"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />Enabled</label>
+          <div className="mock-match"><input value={draft.method} placeholder="Method (any)" onChange={(event) => setDraft({ ...draft, method: event.target.value.toUpperCase() })} /><input value={draft.url_pattern} placeholder="URL contains, e.g. /api/user" onChange={(event) => setDraft({ ...draft, url_pattern: event.target.value })} /><input value={draft.status} type="number" min="100" max="599" onChange={(event) => setDraft({ ...draft, status: Number(event.target.value) || 200 })} /></div>
+          <FilterField label="Response headers"><textarea value={headersText} onChange={(event) => setHeadersText(event.target.value)} placeholder={'content-type: application/json; charset=utf-8\ncontent-encoding: gzip (optional)'} spellCheck={false} /></FilterField>
+          <FilterField label="Response body"><textarea className="request-body-editor" value={bodyText} onChange={(event) => setBodyText(event.target.value)} spellCheck={false} /></FilterField>
+        </div>
+        <footer className="filter-dialog-footer"><button onClick={() => { setDraft(blank()); setHeadersText(headersToText(blank().headers)); setBodyText(''); }}>New</button><button className="filter-apply" onClick={save} disabled={!draft.url_pattern.trim()}>Save rule</button></footer>
+      </section>
+    </div>
+  );
+}
+
+function headersToText(headers: HeaderEntry[]) { return headers.map((header) => `${header.name}: ${header.value}`).join('\n'); }
+
+function textToHeaders(value: string) {
+  return value.split('\n').flatMap((line) => {
+    const separator = line.indexOf(':');
+    if (separator <= 0) return [];
+    return [{ name: line.slice(0, separator).trim(), value: line.slice(separator + 1).trim() }];
+  });
 }
 
 function DetailTabButton({ active, onClick, title, children }: { active: boolean; onClick: () => void; title?: string; children: string }) {

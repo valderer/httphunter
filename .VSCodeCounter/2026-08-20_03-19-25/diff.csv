@@ -1,0 +1,37 @@
+"filename", "language", "YAML", "Markdown", "XML", "Rust", "JSON", "JSON with Comments", "TypeScript", "TypeScript JSX", "HTML", "Makefile", "PostCSS", "comment", "blank", "total"
+"/Users/lewis/Documents/code/httphunter/.github/workflows/release.yml", "YAML", 74, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 86
+"/Users/lewis/Documents/code/httphunter/Makefile", "Makefile", 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 3, 6, 20
+"/Users/lewis/Documents/code/httphunter/README.md", "Markdown", 0, 119, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 178
+"/Users/lewis/Documents/code/httphunter/capture.har", "JSON", 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/ca.rs", "Rust", 0, 0, 0, 68, 0, 0, 0, 0, 0, 0, 0, 0, 12, 80
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/config.rs", "Rust", 0, 0, 0, 134, 0, 0, 0, 0, 0, 0, 0, 0, 18, 152
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/lib.rs", "Rust", 0, 0, 0, 286, 0, 0, 0, 0, 0, 0, 0, 4, 37, 327
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/mitm.rs", "Rust", 0, 0, 0, 196, 0, 0, 0, 0, 0, 0, 0, 0, 18, 214
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/proxy_engine.rs", "Rust", 0, 0, 0, 332, 0, 0, 0, 0, 0, 0, 0, 0, 34, 366
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/runtime.rs", "Rust", 0, 0, 0, 129, 0, 0, 0, 0, 0, 0, 0, 0, 23, 152
+"/Users/lewis/Documents/code/httphunter/crates/hunter-core/src/system_proxy.rs", "Rust", 0, 0, 0, 111, 0, 0, 0, 0, 0, 0, 0, 0, 13, 124
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/build.rs", "Rust", 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/capabilities/default.json", "JSON", 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 8
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/icons/android/mipmap-anydpi-v26/ic_launcher.xml", "XML", 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/icons/android/values/ic_launcher_background.xml", "XML", 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/src/main.rs", "Rust", 0, 0, 0, 159, 0, 0, 0, 0, 0, 0, 0, 0, 20, 179
+"/Users/lewis/Documents/code/httphunter/desktop/src-tauri/tauri.conf.json", "JSON", 0, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 1, 38
+"/Users/lewis/Documents/code/httphunter/desktop/web/index.html", "HTML", 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 2, 14
+"/Users/lewis/Documents/code/httphunter/desktop/web/package-lock.json", "JSON", 0, 0, 0, 0, 1877, 0, 0, 0, 0, 0, 0, 0, 1, 1878
+"/Users/lewis/Documents/code/httphunter/desktop/web/package.json", "JSON", 0, 0, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 1, 29
+"/Users/lewis/Documents/code/httphunter/desktop/web/src/App.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 432, 0, 0, 0, 0, 53, 485
+"/Users/lewis/Documents/code/httphunter/desktop/web/src/main.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 3, 12
+"/Users/lewis/Documents/code/httphunter/desktop/web/src/styles.css", "PostCSS", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 105, 0, 1, 106
+"/Users/lewis/Documents/code/httphunter/desktop/web/tsconfig.json", "JSON with Comments", 0, 0, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 2, 21
+"/Users/lewis/Documents/code/httphunter/desktop/web/vite.config.ts", "TypeScript", 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 3, 14
+"/Users/lewis/Documents/code/httphunter/src/api.rs", "Rust", 0, 0, 0, -470, 0, 0, 0, 0, 0, 0, 0, 0, -22, -492
+"/Users/lewis/Documents/code/httphunter/src/ca.rs", "Rust", 0, 0, 0, -62, 0, 0, 0, 0, 0, 0, 0, 0, -16, -78
+"/Users/lewis/Documents/code/httphunter/src/capture.rs", "Rust", 0, 0, 0, -123, 0, 0, 0, 0, 0, 0, 0, 0, -16, -139
+"/Users/lewis/Documents/code/httphunter/src/config.rs", "Rust", 0, 0, 0, -127, 0, 0, 0, 0, 0, 0, 0, 0, -17, -144
+"/Users/lewis/Documents/code/httphunter/src/error.rs", "Rust", 0, 0, 0, -11, 0, 0, 0, 0, 0, 0, 0, 0, -4, -15
+"/Users/lewis/Documents/code/httphunter/src/logging.rs", "Rust", 0, 0, 0, -11, 0, 0, 0, 0, 0, 0, 0, 0, -3, -14
+"/Users/lewis/Documents/code/httphunter/src/main.rs", "Rust", 0, 0, 0, -73, 0, 0, 0, 0, 0, 0, 0, -8, -12, -93
+"/Users/lewis/Documents/code/httphunter/src/mitm.rs", "Rust", 0, 0, 0, -192, 0, 0, 0, 0, 0, 0, 0, 0, -18, -210
+"/Users/lewis/Documents/code/httphunter/src/proxy.rs", "Rust", 0, 0, 0, -297, 0, 0, 0, 0, 0, 0, 0, 0, -35, -332
+"/Users/lewis/Documents/code/httphunter/startup.md", "Markdown", 0, -888, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -295, -1183
+"Total", "-", 74, -769, 9, 52, 1948, 19, 11, 441, 12, 11, 105, -1, -117, 1795

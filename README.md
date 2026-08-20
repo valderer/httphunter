@@ -11,7 +11,8 @@
 - HTTP/1.1 HTTP/HTTPS 代理与 HTTPS MITM。
 - 请求列表、详情页、请求/响应 Header 与 Body、JSON 格式化显示。
 - Host、方法、状态码和静态资源过滤。
-- macOS 一键开启/关闭系统 HTTP 和 HTTPS 代理。
+- 请求重放（Replay）、请求断点（Intercept）和按 URL 匹配的 Mock 响应。
+- macOS 与 Windows 一键开启/关闭系统 HTTP 和 HTTPS 代理。
 - 会话只保存在内存，关闭应用或点击 Clear 后清空。
 
 当前不支持 HTTP/2、HTTP/3/QUIC、WebSocket 深度解析或会话持久化。某些启用证书绑定或反爬策略的网站可能不能通过 MITM 正常访问。
@@ -86,14 +87,34 @@ open "$HOME/Library/Application Support/httphunter/ca.crt"
 
 1. 打开桌面窗口后，先生成并信任 Local CA。
 2. 点击顶部的 **Stopped**，它会变为绿色的 **Capturing**，开始抓包。
-3. 在 macOS 上，此开关同时将当前网络服务的 HTTP 和 HTTPS 系统代理设为 `127.0.0.1:8080`。浏览器流量会自动进入 httphunter。
+3. 此开关会将系统 HTTP 和 HTTPS 代理设为 `127.0.0.1:8080`，浏览器流量会自动进入 httphunter。macOS 使用当前 `Wi-Fi` 网络服务；Windows 使用当前用户的 Internet Settings，无需管理员权限。
 4. 左侧列表按最新请求在上方排序。使用 **Filters** 按 Host、Method、Status 过滤，或隐藏静态资源。
 5. 点击一个请求，在右侧查看 Overview、请求/响应 Header、Body 和原始 JSON。
 6. 结束时再次点击 **Capturing**，使其回到 **Stopped**。这会停止抓包并关闭 httphunter 设置的系统代理。
 
-桌面端当前使用固定的 `Wi-Fi` 网络服务和 `127.0.0.1:8080`。开始抓包会覆盖该网络服务原有的 HTTP/HTTPS 代理配置，停止时只会关闭 httphunter 代理，**不会恢复原有代理地址**。使用 Clash、公司代理或其他系统代理前，请先记录原配置；异常退出时也应在“系统设置 -> 网络 -> Wi-Fi -> 详情 -> 代理”中检查并关闭 HTTP/HTTPS 代理。
+开始抓包会覆盖原有的 HTTP/HTTPS 系统代理配置，停止时只会关闭 httphunter 代理，**不会恢复原有代理地址**。使用 Clash、公司代理或其他系统代理前，请先记录原配置。异常退出时，macOS 可在“系统设置 -> 网络 -> Wi-Fi -> 详情 -> 代理”中检查；Windows 可在“设置 -> 网络和 Internet -> 代理”中关闭手动代理。
 
 Clash TUN 可以保持开启：httphunter 接收浏览器的本地代理流量，其后续外连通常会经过 TUN。若遇到无法访问、证书固定或风控页面，应先停止抓包，或将该域名排除在 HTTPS MITM 之外（目前此项通过 CLI 配置）。
+
+### 重放、断点和 Mock
+
+- 选中任意已捕获的 HTTP/HTTPS 请求，点击右侧请求方法旁的 **Replay**。可修改 Method、URL、Header 和 Body 后发送；重放结果会作为一条新会话写入列表，来源显示为本机。
+- 顶部开启 **Intercept** 后，新的已解密 HTTP/HTTPS 请求会在转发到上游前暂停。右下角出现提示后点击 **Review**，可以编辑请求并 **Forward**，或 **Drop**。断点不会作用于被排除 MITM 的 HTTPS 隧道；它们的内容对代理不可见。
+- 顶部的 **Mock** 可添加规则。规则按 `Method`（可留空）和“URL contains”匹配，命中时不会访问上游，而是直接返回规则中配置的 Status、Header 和 Body。Mock Body 始终按编辑器中的未压缩文本保存；需要模拟 gzip 时，在 Header 加 `content-encoding: gzip`，程序会自动压缩 Body 并重算 `content-length`。
+
+这三项规则与开关当前只保存在内存中，重启应用后会清空。开启 Intercept 后，未处理的请求会持续等待并可能让页面或 App 卡住；调试完成后应及时关闭。
+
+## 手机抓包（同一 Wi-Fi）
+
+桌面端顶部最右侧的 **Mobile** 可开启“允许局域网设备连接”模式。默认关闭；开启后代理会从仅本机监听的 `127.0.0.1:8080` 切换为局域网监听，同时仍只接受私有网络来源的连接。
+
+1. 让手机和运行 httphunter 的电脑连接同一个 Wi-Fi。
+2. 在桌面端点击 **Mobile**，勾选 **Allow Wi-Fi devices**。
+3. 弹窗会显示 `Server` 和 `Port`。在手机当前 Wi-Fi 的代理设置中选择“手动”，填入这个地址和 `8080`。
+4. 要查看 HTTPS 内容，还需要将桌面端生成的 `ca.crt` 安装到手机并信任。iPhone/iPad 安装描述文件后，还需要在“设置 -> 通用 -> 关于本机 -> 证书信任设置”中启用完全信任；Android 的证书信任和第三方 App 是否接受用户 CA 取决于系统和 App 配置。
+5. 用完后取消勾选 **Allow Wi-Fi devices**，再在手机 Wi-Fi 设置中关闭手动代理。
+
+这个模式不会开启或关闭 Mac 的系统代理，因此不会改变电脑当前的 Clash 链路。macOS 防火墙若阻止入站连接，需要允许 httphunter 接收 `8080` 端口的本地网络连接。不要在公共、不可信 Wi-Fi 上长时间开启此模式；任何可连接到你的局域网设备都可能通过该代理产生流量，而 HTTPS 抓包可能包含 Cookie、Token 和正文内容。
 
 ## Windows
 
@@ -170,7 +191,7 @@ desktop/src-tauri/    Tauri 桌面壳和 Rust 命令
 
 ## 安全说明
 
-- 代理只监听 `127.0.0.1`，不会直接暴露到局域网。
+- 默认代理只监听 `127.0.0.1`，不会直接暴露到局域网；只有手动开启 **Mobile** 后才会监听局域网，并拒绝公网来源的客户端。
 - 会话目前只放在内存中，但抓包期间任何能访问应用窗口的本机用户都可看到其内容。
 - HTTPS MITM 的本地 CA 私钥位于应用数据目录。不要分享该私钥，也不要在不可信设备上信任该 CA。
 - 当前配置中的 Header 脱敏和 Body 大小限制尚未完整接入所有抓包路径。使用时应假定敏感 Header 与 Body 可能被完整保存在内存中。
